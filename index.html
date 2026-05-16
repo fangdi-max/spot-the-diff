@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>找不同大冒险 - 毕业设计作品</title>
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --accent-color: #f1c40f;
+            --success-color: #2ecc71;
+            --danger-color: #e74c3c;
+        }
+
+        body {
+            margin: 0; padding: 0; min-height: 100vh;
+            display: flex; flex-direction: column; align-items: center;
+            background: linear-gradient(135deg, rgba(44, 62, 80, 0.9) 0%, rgba(0, 0, 0, 0.9) 100%), url('photo/bgphoto.png');
+            background-size: cover; background-attachment: fixed;
+            font-family: "Microsoft YaHei", sans-serif; color: white; overflow-x: hidden;
+        }
+
+        #gameHeader {
+            width: 1000px; display: flex; justify-content: space-between;
+            align-items: center; padding: 15px 0; z-index: 10;
+        }
+
+        .info-panel {
+            background: rgba(44, 62, 80, 0.7); padding: 10px 20px;
+            border-radius: 10px; border: 1px solid rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        #canvasWrapper {
+            position: relative; 
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+            border: 5px solid #2c3e50; 
+            border-radius: 8px;
+            background: #000; 
+            overflow: hidden;
+            width: fit-content; 
+            max-width: 95vw;
+            margin: 0 auto; 
+        }
+
+        canvas {
+            max-width: 100%;
+            height: auto; 
+            display: block;
+            cursor: crosshair;  
+        }
+
+        /* 白色圆点进度容器 */
+        #dotContainer {
+            width: 1000px; margin-top: 20px;
+            display: flex; justify-content: center; gap: 15px;
+        }
+
+        .status-dot {
+            width: 30px; height: 30px; background: white;
+            border-radius: 50%; display: flex; align-items: center;
+            justify-content: center; font-weight: bold; color: transparent;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: all 0.3s ease;
+        }
+
+        .status-dot.active {
+            color: var(--success-color);
+            transform: scale(1.1);
+        }
+
+        .status-dot.active::after {
+            content: "✔";
+            font-size: 20px;
+        }
+
+        #startScreen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(20, 30, 40, 0.95);
+            display: flex; justify-content: center; align-items: center; z-index: 100;
+        }
+
+        .menu-box {
+            background: rgba(44, 62, 80, 0.8); padding: 40px;
+            border-radius: 20px; text-align: center;
+            border: 2px solid var(--accent-color); backdrop-filter: blur(15px);
+        }
+
+        .menu-btn {
+            display: block; width: 220px; padding: 15px; margin: 15px auto;
+            background: var(--success-color); border: none; border-radius: 50px;
+            color: white; font-size: 1.2rem; font-weight: bold; cursor: pointer; transition: 0.3s;
+        }
+
+        .unique-btn { background: #9b59b6; }
+        .quit-btn { background: var(--danger-color); margin-top: 30px; width: 150px; font-size: 0.9rem; }
+
+        @media screen and (max-width: 1000px) {
+            #gameHeader, #dotContainer { width: 95vw; }
+            #canvasWrapper { 
+                width: 95vw; 
+                height: auto; /* 手机端也设为 auto */
+            }
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-8px); }
+            75% { transform: translateX(8px); }
+        }
+        .shake-anim { animation: shake 0.1s linear 3; }
+    </style>
+</head>
+<body>
+
+<div id="startScreen">
+    <div class="menu-box">
+        <h1 style="color: var(--accent-color);">找不同大冒险</h1>
+        <button class="menu-btn" onclick="startGame('standard')">经典找不同</button>
+        <button class="menu-btn unique-btn" onclick="startGame('unique')">万里挑一模式</button>
+        <div style="margin: 15px 0;"><label><input type="checkbox" id="musicToggle" checked> 开启音效</label></div>
+        <button class="menu-btn quit-btn" onclick="quitGame()">退出游戏</button>
+    </div>
+</div>
+
+<div id="gameHeader">
+    <!-- 左侧：关卡信息 -->
+    <div class="info-panel" style="flex-shrink: 0;">
+        <h2 id="levelTitle" style="margin:0; font-size: 1.2rem; color: var(--accent-color);">准备就绪</h2>
+        <div style="font-size: 0.8rem;">关卡: <span id="currentLevelNum">0</span></div>
+    </div>
+
+    <!-- 中间：贯穿中间区域的进度条容器 -->
+    <div style="flex-grow: 1; margin: 0 20px; display: flex; align-items: center;">
+        <div id="timerBarContainer" style="width: 100%; height: 12px; background: rgba(255,255,255,0.1); border-radius: 6px; overflow: hidden; border: 1px solid rgba(255,255,255,0.2);">
+            <div id="timerBarInner" style="width: 100%; height: 100%; background: #2ecc71; transition: width 0.3s linear, background-color 0.3s;"></div>
+        </div>
+    </div>
+
+    <!-- 右侧：倒计时数字 -->
+    <div class="info-panel" style="flex-shrink: 0; min-width: 80px; text-align: center;">
+        <div style="font-size: 0.7rem; color: #bdc3c7; line-height: 1;">TIME</div>
+        <div id="timerText" style="font-size: 1.8rem; font-family: monospace; line-height: 1.2;">60</div>
+    </div>
+</div>
+
+<div id="canvasWrapper">
+    <canvas id="gameCanvas" width="1000" height="300"></canvas>
+</div>
+
+<div id="dotContainer"></div>
+
+<script>const CONFIG = { imgW: 500, imgH: 300, defaultRadius: 30, penaltyTime: 5 };</script>
+<script src="data.js"></script>
+<script src="core.js"></script>
+<script src="unique.js"></script>
+<script src="game.js"></script>
+</body>
+</html>
